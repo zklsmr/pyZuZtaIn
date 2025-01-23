@@ -4,12 +4,12 @@ import shutil
 import numpy as np
 import pandas as pd
 
-import pySuStaIn
+import pyZuZtaIn
 
 
 def initialize_validation(seed):
     '''
-    Initialize validation parameters shared across 
+    Initialize validation parameters shared across
     all SuStaIn classes
     '''
     validation_params = {
@@ -106,7 +106,7 @@ if __name__ == "__main__":
         "-c", "--sustainclass",
         type=str,
         default=None,
-        choices=[i.__name__ for i in pySuStaIn.AbstractSustain.__subclasses__()],
+        choices=[i.__name__ for i in pyZuZtaIn.AbstractSustain.__subclasses__()],
         help="Name of single class to create new validation"
     )
     args = parser.parse_args()
@@ -119,7 +119,7 @@ if __name__ == "__main__":
     if proceed:
         if args.sustainclass:
             class_dict = {
-                i.__name__: i for i in pySuStaIn.AbstractSustain.__subclasses__()
+                i.__name__: i for i in pyZuZtaIn.AbstractSustain.__subclasses__()
             }
             create_new_validation(
                 args.seed,
@@ -128,5 +128,5 @@ if __name__ == "__main__":
         else:
             create_new_validation(
                 args.seed,
-                pySuStaIn.AbstractSustain.__subclasses__()
+                pyZuZtaIn.AbstractSustain.__subclasses__()
             )

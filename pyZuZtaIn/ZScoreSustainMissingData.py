@@ -1,9 +1,9 @@
 ###
-# pySuStaIn: Python translation of Matlab version of SuStaIn algorithm (https://www.nature.com/articles/s41467-018-05892-0)
+# pyZuZtaIn: Python translation of Matlab version of SuStaIn algorithm (https://www.nature.com/articles/s41467-018-05892-0)
 # Authors: Peter Wijeratne (p.wijeratne@ucl.ac.uk) and Leon Aksman (l.aksman@ucl.ac.uk)
 # Contributors: Arman Eshaghi (a.eshaghi@ucl.ac.uk), Alex Young (alexandra.young@kcl.ac.uk), Mar Estarellas (rmapest@ucl.ac.uk)
 #
-# For questions/comments related to: object orient implementation of pySustain
+# For questions/comments related to: object orient implementation of pyZuZtaIn
 # contact: Leon Aksman (l.aksman@ucl.ac.uk)
 # For questions/comments related to: the SuStaIn algorithm
 # contact: Alex Young (alexandra.young@kcl.ac.uk)
@@ -13,9 +13,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.stats import norm
 
-from pySuStaIn.AbstractSustain import AbstractSustainData
-from pySuStaIn.AbstractSustain import AbstractSustain
-from pySuStaIn.ZscoreSustain import ZscoreSustain
+from pyZuZtaIn.AbstractSustain import AbstractSustainData
+from pyZuZtaIn.AbstractSustain import AbstractSustain
+from pyZuZtaIn.ZscoreSustain import ZscoreSustain
 
 #*******************************************
 #The data structure class for ZscoreSustainMissingData. It holds the z-scored data that gets passed around and re-indexed in places.
@@ -201,7 +201,7 @@ class ZscoreSustainMissingData(AbstractSustain):
 
         M                                   = sustainData.getNumSamples()   #data_local.shape[0]
         p_perm_k                            = np.zeros((M, N + 1))
-        
+
         # Missing data
         p_missingdata = np.ones((1,B))/ (self.max_biomarker_zscore-self.min_biomarker_zscore)
         p_missingdata = np.tile(p_missingdata, (M, 1))
@@ -217,7 +217,7 @@ class ZscoreSustainMissingData(AbstractSustain):
         for j in range(N+1):
             x                   = (data-np.tile(stage_value[:,j],(M,1)))/sigmat
             p_perm_k[:,j]       = coeff+np.sum(factor-.5*x*x,1)
-        
+
         # faster - do the tiling once
         stage_value_tiled                   = np.tile(stage_value, (M, 1))
         N_biomarkers                        = stage_value.shape[0]
@@ -227,18 +227,18 @@ class ZscoreSustainMissingData(AbstractSustain):
             p_perm_k[:, j]                  = coeff + np.sum(factor - .5 * np.square(x), 1)
         p_perm_k                            = np.exp(p_perm_k)
         """
-        
+
         # Missing data
         stage_value_tiled                   = np.tile(stage_value, (M, 1))
         N_biomarkers                        = stage_value.shape[0]
         for j in range(N + 1):
             stage_value_tiled_j             = stage_value_tiled[:, j].reshape(M, N_biomarkers)
             x_hasdata                       = (sustainData.data - stage_value_tiled_j) / sigmat  #(data_local - stage_value_tiled_j) / sigmat
-            
+
             p = np.log(p_missingdata);
             p[~np.isnan(sustainData.data)] = x_hasdata[~np.isnan(sustainData.data)];
 
-            p_perm_k[:, j]                  = coeff + np.sum(factor - .5 * np.square(p), 1) 
+            p_perm_k[:, j]                  = coeff + np.sum(factor - .5 * np.square(p), 1)
         p_perm_k                            = np.exp(p_perm_k)
 
         return p_perm_k
@@ -336,7 +336,7 @@ class ZscoreSustainMissingData(AbstractSustain):
         p_perm_k_weighted                   = p_perm_k * f_val_mat
         #p_perm_k_norm                       = p_perm_k_weighted / np.tile(np.sum(np.sum(p_perm_k_weighted, 1), 1).reshape(M, 1, 1), (1, N + 1, N_S))  # the second summation axis is different to Matlab version
         p_perm_k_norm                       = p_perm_k_weighted / np.sum(p_perm_k_weighted + 1e-250, axis=(1, 2), keepdims=True)
-        
+
         f_opt                               = (np.squeeze(sum(sum(p_perm_k_norm))) / sum(sum(sum(p_perm_k_norm)))).reshape(N_S, 1, 1)
         f_val_mat                           = np.tile(f_opt, (1, N + 1, M))
         f_val_mat                           = np.transpose(f_val_mat, (2, 1, 0))
@@ -366,7 +366,7 @@ class ZscoreSustainMissingData(AbstractSustain):
         samples_f[:, 0]                     = f_init
 
         # Reduce frequency of tqdm update to 0.1% of total for larger iteration numbers
-        tqdm_update_iters = int(n_iterations/1000) if n_iterations > 100000 else None 
+        tqdm_update_iters = int(n_iterations/1000) if n_iterations > 100000 else None
 
         for i in tqdm(range(n_iterations), "MCMC Iteration", n_iterations, miniters=tqdm_update_iters):
             if i > 0:
@@ -479,7 +479,7 @@ class ZscoreSustainMissingData(AbstractSustain):
 
     # ********************* TEST METHODS
     @classmethod
-    def test_sustain(cls, n_biomarkers, n_samples, n_subtypes, 
+    def test_sustain(cls, n_biomarkers, n_samples, n_subtypes,
     ground_truth_subtypes, sustain_kwargs, seed=42):
         # Set a global seed to propagate
         np.random.seed(seed)
@@ -532,7 +532,7 @@ class ZscoreSustainMissingData(AbstractSustain):
             for i in range(N):
 
                 IS_min_stage_zscore = np.full(N, False)
-    
+
                 for j in possible_biomarkers:
                     IS_unselected = np.full(N, False)
                     # I have no idea what purpose this serves, so leaving for now
@@ -547,7 +547,7 @@ class ZscoreSustainMissingData(AbstractSustain):
                         this_min_stage_zscore = 0
                     else:
                         this_min_stage_zscore = np.min(stage_zscore[this_biomarkers])
-                    
+
                     if this_min_stage_zscore:
                         IS_min_stage_zscore[np.logical_and(
                             this_biomarkers,
@@ -557,7 +557,7 @@ class ZscoreSustainMissingData(AbstractSustain):
                 events = np.arange(N)
                 possible_events = events[IS_min_stage_zscore]
                 this_index = np.ceil(np.random.rand() * len(possible_events)) - 1
-                
+
                 S[s][i] = possible_events[int(this_index)]
         return S
 

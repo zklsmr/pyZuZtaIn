@@ -3,5 +3,5 @@
 
 from simfuncs import *
 
-from ..pySuStaIn.MixtureSustain import *
-from ..pySuStaIn.ZscoreSustain import *
+from ..pyZuZtaIn.MixtureSustain import *
+from ..pyZuZtaIn.ZscoreSustain import *

@@ -1,9 +1,9 @@
 ###
-# pySuStaIn: a Python implementation of the Subtype and Stage Inference (SuStaIn) algorithm
+# pyZuZtaIn: a Python implementation of the Subtype and Stage Inference (SuStaIn) algorithm
 #
-# If you use pySuStaIn, please cite the following core papers:
+# If you use pyZuZtaIn, please cite the following core papers:
 # 1. The original SuStaIn paper:    https://doi.org/10.1038/s41467-018-05892-0
-# 2. The pySuStaIn software paper:  https://doi.org/10.1016/j.softx.2021.100811
+# 2. The pyZuZtaIn software paper:  https://doi.org/10.1016/j.softx.2021.100811
 #
 # Please also cite the corresponding progression pattern model you use:
 # 1. The piece-wise linear z-score model (i.e. ZscoreSustain):  https://doi.org/10.1038/s41467-018-05892-0
@@ -23,8 +23,8 @@ import numpy as np
 import scipy.stats as stats
 from matplotlib import pyplot as plt
 
-from pySuStaIn.AbstractSustain import AbstractSustainData
-from pySuStaIn.AbstractSustain import AbstractSustain
+from pyZuZtaIn.AbstractSustain import AbstractSustainData
+from pyZuZtaIn.AbstractSustain import AbstractSustain
 
 #*******************************************
 #The data structure class for MixtureSustain. It holds the positive/negative likelihoods that get passed around and re-indexed in places.
@@ -249,7 +249,7 @@ class MixtureSustain(AbstractSustain):
         samples_f[:, 0]                     = f_init
 
         # Reduce frequency of tqdm update to 0.1% of total for larger iteration numbers
-        tqdm_update_iters = int(n_iterations/1000) if n_iterations > 100000 else None 
+        tqdm_update_iters = int(n_iterations/1000) if n_iterations > 100000 else None
 
         for i in tqdm(range(n_iterations), "MCMC Iteration", n_iterations, miniters=tqdm_update_iters):
             if i > 0:
@@ -443,7 +443,7 @@ class MixtureSustain(AbstractSustain):
 
                 # Plot the matrix
                 # Manually set vmin/vmax to handle edge cases
-                # and ensure consistent colourization across figures 
+                # and ensure consistent colourization across figures
                 # when certainty=1
                 ax.imshow(
                     confus_matrix[biomarker_order, :],
@@ -547,7 +547,7 @@ class MixtureSustain(AbstractSustain):
     def generate_random_model(N_biomarkers, N_S):
         S                                   = np.zeros((N_S, N_biomarkers))
         #try 30 times to find a unique sequence for each subtype
-        for i in range(30): 
+        for i in range(30):
             matched_others                  = False
             for s in range(N_S):
                 S[s, :]                     = np.random.permutation(N_biomarkers)

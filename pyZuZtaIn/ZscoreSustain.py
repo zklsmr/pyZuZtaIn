@@ -1,9 +1,9 @@
 ###
-# pySuStaIn: a Python implementation of the Subtype and Stage Inference (SuStaIn) algorithm
+# pyZuZtaIn: a Python implementation of the Subtype and Stage Inference (SuStaIn) algorithm
 #
-# If you use pySuStaIn, please cite the following core papers:
+# If you use pyZuZtaIn, please cite the following core papers:
 # 1. The original SuStaIn paper:    https://doi.org/10.1038/s41467-018-05892-0
-# 2. The pySuStaIn software paper:  https://doi.org/10.1016/j.softx.2021.100811
+# 2. The pyZuZtaIn software paper:  https://doi.org/10.1016/j.softx.2021.100811
 
 # Please also cite the corresponding progression pattern model you use:
 # 1. The piece-wise linear z-score model (i.e. ZscoreSustain):  https://doi.org/10.1038/s41467-018-05892-0
@@ -24,8 +24,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.stats import norm
 
-from pySuStaIn.AbstractSustain import AbstractSustainData
-from pySuStaIn.AbstractSustain import AbstractSustain
+from pyZuZtaIn.AbstractSustain import AbstractSustainData
+from pyZuZtaIn.AbstractSustain import AbstractSustain
 
 #*******************************************
 #The data structure class for ZscoreSustain. It holds the z-scored data that gets passed around and re-indexed in places.
@@ -365,7 +365,7 @@ class ZscoreSustain(AbstractSustain):
         samples_f[:, 0]                     = f_init
 
         # Reduce frequency of tqdm update to 0.1% of total for larger iteration numbers
-        tqdm_update_iters = int(n_iterations/1000) if n_iterations > 100000 else None 
+        tqdm_update_iters = int(n_iterations/1000) if n_iterations > 100000 else None
 
         for i in tqdm(range(n_iterations), "MCMC Iteration", n_iterations, miniters=tqdm_update_iters):
             if i > 0:
@@ -683,7 +683,7 @@ class ZscoreSustain(AbstractSustain):
 
     # ********************* TEST METHODS
     @classmethod
-    def test_sustain(cls, n_biomarkers, n_samples, n_subtypes, 
+    def test_sustain(cls, n_biomarkers, n_samples, n_subtypes,
     ground_truth_subtypes, sustain_kwargs, seed=42):
         # Set a global seed to propagate
         np.random.seed(seed)
@@ -736,7 +736,7 @@ class ZscoreSustain(AbstractSustain):
             for i in range(N):
 
                 IS_min_stage_zscore = np.full(N, False)
-    
+
                 for j in possible_biomarkers:
                     IS_unselected = np.full(N, False)
                     # I have no idea what purpose this serves, so leaving for now
@@ -751,7 +751,7 @@ class ZscoreSustain(AbstractSustain):
                         this_min_stage_zscore = 0
                     else:
                         this_min_stage_zscore = np.min(stage_zscore[this_biomarkers])
-                    
+
                     if this_min_stage_zscore:
                         IS_min_stage_zscore[np.logical_and(
                             this_biomarkers,
@@ -761,7 +761,7 @@ class ZscoreSustain(AbstractSustain):
                 events = np.arange(N)
                 possible_events = events[IS_min_stage_zscore]
                 this_index = np.ceil(np.random.rand() * len(possible_events)) - 1
-                
+
                 S[s][i] = possible_events[int(this_index)]
         return S
 

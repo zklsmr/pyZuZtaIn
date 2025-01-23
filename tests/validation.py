@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
-import pySuStaIn
+import pyZuZtaIn
 
 import create_validation
 
@@ -121,13 +121,13 @@ if __name__ == "__main__":
         "-c", "--sustainclass",
         type=str,
         default="mixturesustain",
-        choices=[i.__name__.lower() for i in pySuStaIn.AbstractSustain.__subclasses__()] + [i.__name__.lower().replace("sustain", "") for i in pySuStaIn.AbstractSustain.__subclasses__()],
+        choices=[i.__name__.lower() for i in pyZuZtaIn.AbstractSustain.__subclasses__()] + [i.__name__.lower().replace("sustain", "") for i in pyZuZtaIn.AbstractSustain.__subclasses__()],
         help="Name of single class to create new validation"
     )
     args = parser.parse_args()
     # Test all sustain subclasses
     if args.full:
-        sustain_classes = pySuStaIn.AbstractSustain.__subclasses__()
+        sustain_classes = pyZuZtaIn.AbstractSustain.__subclasses__()
     # Otherwise test a single class
     else:
         # Allow less verbose selections
@@ -137,7 +137,7 @@ if __name__ == "__main__":
             selected_class = args.sustainclass + "sustain"
         # Get all available subclasses
         class_dict = {
-            i.__name__.lower(): i for i in pySuStaIn.AbstractSustain.__subclasses__()
+            i.__name__.lower(): i for i in pyZuZtaIn.AbstractSustain.__subclasses__()
         }
         sustain_classes = [class_dict[selected_class]]
     test(args.seed, sustain_classes, args.time)
