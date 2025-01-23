@@ -65,7 +65,7 @@ class OrdinalSustain(AbstractSustain):
                  seed=None):
         # The initializer for the scored events model implementation of AbstractSustain
         # Parameters:
-        #   prob_nl                     - probability of negative/normal class for all subjects across all biomarkers 
+        #   prob_nl                     - probability of negative/normal class for all subjects across all biomarkers
         #                                 dim: number of subjects x number of biomarkers
         #   prob_score                  - probability of each score for all subjects across all biomarkers
         #                                 dim: number of subjects x number of biomarkers x number of scores
@@ -176,7 +176,7 @@ class OrdinalSustain(AbstractSustain):
         N = self.stage_score.shape[1]
 
         B = sustainData.prob_nl.shape[1]
-    
+
         IS_normal = np.ones(B)
         IS_abnormal = np.zeros(B)
         index_reached = np.zeros(B,dtype=int)
@@ -321,7 +321,7 @@ class OrdinalSustain(AbstractSustain):
         samples_f[:, 0]                     = f_init
 
         # Reduce frequency of tqdm update to 0.1% of total for larger iteration numbers
-        tqdm_update_iters = int(n_iterations/1000) if n_iterations > 100000 else None 
+        tqdm_update_iters = int(n_iterations/1000) if n_iterations > 100000 else None
 
         for i in tqdm(range(n_iterations), "MCMC Iteration", n_iterations, miniters=tqdm_update_iters):
             if i > 0:
@@ -413,7 +413,7 @@ class OrdinalSustain(AbstractSustain):
         assert numBio_new == self.__sustainData.getNumBiomarkers(), "Number of biomarkers in new data should be same as in training data"
 
         numStages = self.__sustainData.getNumStages()
-        
+
         prob_score_new = prob_score_new.transpose(0,2,1)
         prob_score_new = prob_score_new.reshape(prob_score_new.shape[0],prob_score_new.shape[1]*prob_score_new.shape[2])
         prob_score_new = prob_score_new[:,self.IX_select[0,:]]
@@ -463,6 +463,11 @@ class OrdinalSustain(AbstractSustain):
         N_z = len(num_scores)
         # Extract which biomarkers have which zscores/stages
         stage_biomarker_index = np.tile(np.arange(N_bio), (N_z,))
+        if IX_select.max() >= stage_biomarker_index.size:
+            stage_biomarker_index = np.tile(np.arange(N_bio), (N_z, 2)).flatten()
+
+
+
         stage_biomarker_index = stage_biomarker_index[IX_select]
         # Warn user of reordering if labels and order given
         if biomarker_labels is not None and biomarker_order is not None:
@@ -648,7 +653,15 @@ class OrdinalSustain(AbstractSustain):
                     f"{save_name}.{file_format}",
                     **save_kwargs
                 )
-        return figs, axs
+
+        sequences = {}
+        for i in range(N_S):
+            sequences[f"Subtype_{i+1}"] = samples_sequence[subtype_order[i],:,:].T
+
+        return figs, axs, sequences
+
+
+
 
     # ********************* TEST METHODS
     @classmethod
@@ -702,7 +715,7 @@ class OrdinalSustain(AbstractSustain):
             prob_nl, prob_score, score_vals,
             **sustain_kwargs
         )
-    
+
     @staticmethod
     def generate_random_model(Z_vals, N_S, seed=None):
         num_biomarkers = Z_vals.shape[0]
@@ -739,7 +752,7 @@ class OrdinalSustain(AbstractSustain):
                         this_min_stage_zscore = 0
                     else:
                         this_min_stage_zscore = np.min(stage_zscore[this_biomarkers])
-                    
+
                     if this_min_stage_zscore:
                         IS_min_stage_zscore[np.logical_and(
                             this_biomarkers,
@@ -763,7 +776,7 @@ class OrdinalSustain(AbstractSustain):
             this_subtype = ground_truth_subtypes[m]
             this_stage = ground_truth_stages[m,0].astype(int)
             this_S = ground_truth_sequence[this_subtype, :].astype(int)
-            
+
             this_ordered_biomarker_abnormal = stage_biomarker_index[this_S[:this_stage]]
             this_ordered_score_abnormal = stage_score[this_S[:this_stage]]
 
