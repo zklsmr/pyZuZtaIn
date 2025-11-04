@@ -386,7 +386,7 @@ class AbstractSustain(ABC):
 
                 mean_likelihood_subj_test = loaded_variables["mean_likelihood_subj_test"]
                 pickle_file.close()
-    
+
                 if fold == 0:
                     mean_likelihood_subj_test_cval    = mean_likelihood_subj_test
                 else:
@@ -406,7 +406,7 @@ class AbstractSustain(ABC):
         pickle_dir                          = os.path.join(self.output_folder, 'pickle_files')
 
         #*********** load ML sequence for full model for N_subtypes
-        pickle_filename_s                   = os.path.join(pickle_dir, self.dataset_name + '_subtype' + str(N_subtypes-1) + '.pickle')        
+        pickle_filename_s                   = os.path.join(pickle_dir, self.dataset_name + '_subtype' + str(N_subtypes-1) + '.pickle')
         pickle_filepath                     = Path(pickle_filename_s)
 
         assert pickle_filepath.exists(), "Failed to find pickle file for full model with " + str(N_subtypes) + " subtypes."
@@ -427,7 +427,7 @@ class AbstractSustain(ABC):
         for i in range(N_folds):
 
             #load the MCMC sequences for this fold's model of N_subtypes
-            pickle_filename_fold_s          = os.path.join(pickle_dir, self.dataset_name + '_fold' + str(i) + '_subtype' + str(N_subtypes-1) + '.pickle')        
+            pickle_filename_fold_s          = os.path.join(pickle_dir, self.dataset_name + '_fold' + str(i) + '_subtype' + str(N_subtypes-1) + '.pickle')
             pickle_filepath                 = Path(pickle_filename_fold_s)
 
             assert pickle_filepath.exists(), "Failed to find pickle file for fold " + str(i)
@@ -588,9 +588,9 @@ class AbstractSustain(ABC):
                         prob_ml_subtype[i]  = this_prob_subtype[this_subtype[0][0]]
 
             this_prob_stage                 = np.squeeze(prob_subtype_stage[i, :, int(ml_subtype[i])])
-            
+
             if (np.sum(np.isnan(this_prob_stage)) == 0):
-                # this_stage = 
+                # this_stage =
                 this_stage                  = np.where(this_prob_stage == np.max(this_prob_stage))
                 ml_stage[i]                 = this_stage[0][0]
                 prob_ml_stage[i]            = this_prob_stage[this_stage[0][0]]
@@ -664,10 +664,10 @@ class AbstractSustain(ABC):
                     #replace the previous sequence with the first (row index zero) new sequence
                     this_seq_init[ix_cluster_split] = (this_ml_sequence_split[0]).reshape(this_ml_sequence_split.shape[1])
 
-                    #add the second new sequence (row index one) to the stack of sequences, 
+                    #add the second new sequence (row index one) to the stack of sequences,
                     #so that you now have N_S sequences instead of N_S-1
                     this_seq_init           = np.hstack((this_seq_init.T, this_ml_sequence_split[1])).T
-                    
+
                     #initialize fraction of subjects in each subtype to be uniform
                     this_f_init             = np.array([1.] * N_S) / float(N_S)
 
@@ -987,7 +987,7 @@ class AbstractSustain(ABC):
     def _optimise_mcmc_settings(self, sustainData, seq_init, f_init):
 
         # Optimise the perturbation size for the MCMC algorithm
-        n_iterations_MCMC_optimisation      = int(1e4)  # FIXME: set externally
+        n_iterations_MCMC_optimisation      = self.N_iterations_MCMC  # FIXME: set externally
 
         n_passes_optimisation               = 3
 
@@ -1024,21 +1024,21 @@ class AbstractSustain(ABC):
         return seq_sigma_opt, f_sigma_opt
 
     def _evaluate_likelihood_setofsamples(self, sustainData, samples_sequence, samples_f):
-    
+
         n_total                             = samples_sequence.shape[2]
-    
+
         #reduce the number of samples to speed this function up
         if n_total >= 1e6:
             N_samples                       = int(np.round(n_total/1000))
         elif n_total >= 1e5:
             N_samples                       = int(np.round(n_total/100))
         else:
-            N_samples                       = n_total        
-        select_samples                      = np.round(np.linspace(0, n_total - 1, N_samples)).astype(int)               
-    
+            N_samples                       = n_total
+        select_samples                      = np.round(np.linspace(0, n_total - 1, N_samples)).astype(int)
+
         samples_sequence                    = samples_sequence[:, :, select_samples]
         samples_f                           = samples_f[:, select_samples]
-    
+
         # Take MCMC samples of the uncertainty in the SuStaIn model parameters
         M                                   = sustainData.getNumSamples()   #data_local.shape[0]
         n_iterations                        = samples_sequence.shape[2]

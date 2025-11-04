@@ -536,13 +536,19 @@ class OrdinalSustain(AbstractSustain):
             subtype_loops = N_S
         else:
             subtype_loops = 1
+        # Container for biomarker x stage matrices
+
+        biomarker_stage_matrices = []
+
         # Container for all figure objects
         figs = []
+        confused = {}
         # Loop over figures (only makes a diff if separate_subtypes=True)
         for i in range(subtype_loops):
             # Create the figure and axis for this subtype loop
             fig, axs = plt.subplots(nrows, ncols, figsize=figsize)
             figs.append(fig)
+            tmping = {}
             # Loop over each axis
             for j in range(total_axes):
                 # Normal functionality (all subtypes on one plot)
@@ -566,7 +572,8 @@ class OrdinalSustain(AbstractSustain):
                 # Sum each time it was observed at that point in the sequence
                 # And normalize for number of samples/sequences
                 confus_matrix = (this_samples_sequence==np.arange(N)[:, None, None]).sum(1) / this_samples_sequence.shape[0]
-
+                tmping[j] = confus_matrix
+                # Store the confusion matrix for this subtype
                 # Define the confusion matrix to insert the colours
                 # Use 1s to start with all white
                 confus_matrix_c = np.ones((N_bio, N, 3))
@@ -606,11 +613,13 @@ class OrdinalSustain(AbstractSustain):
 
                         if n_samples != np.inf:
                             title_i = f"Subtype {i+1} (f={vals[i]:.2f}, n={np.round(vals[i] * n_samples):n})"
+                            # title_i = f"Subtype {i+1} (f={vals[i]:.2f}, n={np.round(vals[i] * n_samples):n})" #ZA
                         else:
                             title_i = f"Subtype {i+1} (f={vals[i]:.2f})"
                     else:
                         title_i = f"Subtype {i+1} cross-validated"
                 # Plot the colourized matrix
+                confused[i] = tmping
                 ax.imshow(
                     confus_matrix_c[biomarker_order, :, :],
                     interpolation='nearest'
@@ -658,7 +667,7 @@ class OrdinalSustain(AbstractSustain):
         for i in range(N_S):
             sequences[f"Subtype_{i+1}"] = samples_sequence[subtype_order[i],:,:].T
 
-        return figs, axs, sequences
+        return figs, axs
 
 
 
