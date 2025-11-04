@@ -15,10 +15,10 @@ with open('requirements.txt', 'r') as f:
 
 print("Started pySuStaIn setup.py")
 
-setup(name=               'pySuStaIn',
+setup(name=               'pyZuZtaIn',
       version=            __version__,
       description=        'Python implementation of the SuStaIn algorithm',
-      url=                'https://github.com/ucl-pond/pySuStaIn',
+      url=                'https://github.com/zklsmr/pyZuZtaIn.git@fix_plots',
       classifiers=			  ['Intended Audience :: Science/Research',
                    			  'Programming Language :: Python',
                    			  'Topic :: Scientific/Engineering',
@@ -26,7 +26,7 @@ setup(name=               'pySuStaIn',
       maintainer=         'Leon Aksman',
       maintainer_email=   'l.aksman@ucl.ac.uk',
       license=		        'TBC',
-      packages=			      ['pySuStaIn', 'sim'],
+      packages=			      ['pyZuZtaIn', 'sim'],
       python_requires=  	'>=3.7',
       install_requires =  install_reqs,	#the parsed requirements from requirements.txt
       entry_points=			  {},
