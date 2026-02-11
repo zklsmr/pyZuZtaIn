@@ -35,6 +35,8 @@ warnings.filterwarnings("ignore",category=cbook.mplDeprecation)
 
 from pySuStaIn.ZscoreSustain  import ZscoreSustain
 from pySuStaIn.MixtureSustain import MixtureSustain
+from pySuStaIn.MixedSustain import MixedSustain
+import simfuncs_mixed
 
 import sklearn.model_selection
 
@@ -69,10 +71,11 @@ def main():
     validate                = True
     N_folds                 = 3         #Set low to speed things up here, but generally recommend 10 in practice
 
-    #either 'mixture_GMM' or 'mixture_KDE' or 'zscore'
-    sustainType             = 'mixture_GMM'
+    # either 'mixture_GMM' or 'mixture_KDE' or 'zscore' or 'mixed'
+    sustainType             = 'mixed'
 
-    assert sustainType in ("mixture_GMM", "mixture_KDE", "zscore"), "sustainType should be either mixture_GMM, mixture_KDE or zscore"
+    assert sustainType in ("mixture_GMM", "mixture_KDE", "zscore", "mixed"), \
+        "sustainType should be either mixture_GMM, mixture_KDE, zscore, or mixed"
 
     #****************** generate the ground-truth sequences and groud-truth data (i.e. subjects' biomarker measures)
     dataset_name            = 'sim'
@@ -168,23 +171,60 @@ def main():
 
         sustain                 = ZscoreSustain(data, Z_vals, Z_max, SuStaInLabels, N_startpoints, N_S_max, N_iterations_MCMC, output_folder, dataset_name, use_parallel_startpoints)
 
-    #****** plot the ground truth sequences
-    ground_truth_sequences              = np.expand_dims(ground_truth_sequences, axis=2)
-    ground_truth_fractions_actual, _    = np.histogram(ground_truth_subtypes, bins=np.arange(N_S_ground_truth + 1) - 0.5)
-    ground_truth_fractions_actual       = ground_truth_fractions_actual/len(ground_truth_subtypes)
-    ground_truth_fractions_actual       = np.expand_dims(ground_truth_fractions_actual, axis=1)
-    ground_truth_nsamples               = np.inf
+    elif    sustainType == 'mixed':
 
-    #ordering of positional variance diagrams (PVDs)
-    plot_subtype_order      = np.arange(N_S_ground_truth)
-    #ordering of biomarkers in each PVD
-    plot_biomarker_order    = ground_truth_sequences[plot_subtype_order[0], :].astype(int).ravel()
-    #plot PVDs given subtype and biomarker ordering
-    figs, ax                 = sustain._plot_sustain_model(ground_truth_sequences, ground_truth_fractions_actual, ground_truth_nsamples, \
-                                                          subtype_order=plot_subtype_order, biomarker_order=plot_biomarker_order, title_font_size=12)
-    figs[0].suptitle('Ground truth sequences')
-    figs[0].savefig(os.path.join(output_folder, 'PVD_true.png'))
-    figs[0].show()
+        data                    = simfuncs_mixed.generate_mixed_data(seed=42)
+
+        zscore_data             = data["zscore_data"]
+        ordinal_data            = data["ordinal_data"]
+        z_vals                  = data["z_vals"]
+        z_max                   = data["z_max"]
+        score_vals              = data["score_vals"]
+        list_scores             = data["list_scores"]
+        prob_correct            = data["prob_correct"]
+
+        n_biomarkers_ordinal    = data["n_biomarkers_ordinal"]
+        n_biomarkers_event      = data["n_biomarkers_event"]
+
+        prob_nl                 = simfuncs_mixed.create_prob_nl(ordinal_data, list_scores, prob_correct)
+        prob_score              = simfuncs_mixed.create_prob_score(ordinal_data, list_scores, prob_correct)
+
+        zscore_labels           = [f"zscore_{i+1}" for i in range(zscore_data.shape[1])]
+        ordinal_labels          = (
+            [f"ordinal_{i+1}" for i in range(n_biomarkers_ordinal)]
+            + [f"event_{i+1}" for i in range(n_biomarkers_event)]
+        )
+
+        ground_truth_subj_ids   = list(np.arange(1, zscore_data.shape[0] + 1).astype('str'))
+        ground_truth_sequences  = data["gt_sequence"]
+        ground_truth_subtypes   = data["gt_subtypes"]
+        ground_truth_stages     = data["gt_stages"]
+
+        sustain                 = MixedSustain(
+            zscore_data, z_vals, z_max, zscore_labels,
+            prob_nl, prob_score, score_vals, ordinal_labels,
+            N_startpoints, N_S_max, N_iterations_MCMC,
+            output_folder, dataset_name, use_parallel_startpoints
+        )
+
+    #****** plot the ground truth sequences
+    if sustainType != 'mixed':
+        ground_truth_sequences              = np.expand_dims(ground_truth_sequences, axis=2)
+        ground_truth_fractions_actual, _    = np.histogram(ground_truth_subtypes, bins=np.arange(N_S_ground_truth + 1) - 0.5)
+        ground_truth_fractions_actual       = ground_truth_fractions_actual/len(ground_truth_subtypes)
+        ground_truth_fractions_actual       = np.expand_dims(ground_truth_fractions_actual, axis=1)
+        ground_truth_nsamples               = np.inf
+
+        #ordering of positional variance diagrams (PVDs)
+        plot_subtype_order      = np.arange(N_S_ground_truth)
+        #ordering of biomarkers in each PVD
+        plot_biomarker_order    = ground_truth_sequences[plot_subtype_order[0], :].astype(int).ravel()
+        #plot PVDs given subtype and biomarker ordering
+        figs, ax                 = sustain._plot_sustain_model(ground_truth_sequences, ground_truth_fractions_actual, ground_truth_nsamples, \
+                                                              subtype_order=plot_subtype_order, biomarker_order=plot_biomarker_order, title_font_size=12)
+        figs[0].suptitle('Ground truth sequences')
+        figs[0].savefig(os.path.join(output_folder, 'PVD_true.png'))
+        figs[0].show()
 
     #************* run SuStaIn to infer subtype sequences and subjects' subtypes/stages estimates
     samples_sequence,   \
@@ -193,7 +233,7 @@ def main():
     prob_ml_subtype,    \
     ml_stage,           \
     prob_ml_stage,      \
-    prob_subtype_stage      = sustain.run_sustain_algorithm(plot=True)
+    prob_subtype_stage      = sustain.run_sustain_algorithm(plot=(sustainType != 'mixed'))
 
     #save the most likely subtype, the associated subtype probability,
     # the most likely stage and the associated stage probability for each subject
