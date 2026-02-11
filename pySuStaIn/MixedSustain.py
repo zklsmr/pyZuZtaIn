@@ -2,9 +2,7 @@
 from operator import index
 
 from pySuStaIn.ZscoreSustain import ZscoreSustain
-# from sustain_svd.pySuStaIn import AbstractSustain
-from pySuStaIn import AbstractSustain, AbstractSustainData
-import utils
+from pySuStaIn.AbstractSustain import AbstractSustain, AbstractSustainData
 from scipy import stats
 import os
 
@@ -20,27 +18,56 @@ import pdb
 class MixedSustainData(AbstractSustainData):
 
     def __init__(self, zdata, prob_nl, prob_score, numStages):
-        # TODO: is this correct? how does this work?
         self.zdata = zdata
         self.prob_nl = prob_nl
         self.prob_score = prob_score
         self.__numStages = numStages
+        self.__numSamples = self._validate_and_get_num_samples()
+
+    def _validate_and_get_num_samples(self):
+        num_samples = None
+        if self.zdata is not None:
+            num_samples = self.zdata.shape[0]
+
+        if self.prob_nl is None and self.prob_score is not None:
+            raise ValueError("prob_score provided without prob_nl.")
+        if self.prob_nl is not None and self.prob_score is None:
+            raise ValueError("prob_nl provided without prob_score.")
+
+        if self.prob_nl is not None:
+            if num_samples is None:
+                num_samples = self.prob_nl.shape[0]
+            else:
+                assert num_samples == self.prob_nl.shape[0], "zdata and prob_nl must have same number of samples"
+        if self.prob_score is not None:
+            if num_samples is None:
+                num_samples = self.prob_score.shape[0]
+            else:
+                assert num_samples == self.prob_score.shape[0], "zdata/prob_nl and prob_score must have same number of samples"
+
+        if num_samples is None:
+            raise ValueError("MixedSustainData requires zdata or prob_nl/prob_score.")
+        return num_samples
 
     def getNumSamples(self):
-        if self.zdata is not None:
-            return self.zdata.shape[0]
-        else:
-            return self.prob_nl.shape[0]
+        return self.__numSamples
     
     def getNumBiomarkers(self):
-        return self.zdata.shape[1] + self.prob_nl.shape[1]
+        num_biomarkers = 0
+        if self.zdata is not None:
+            num_biomarkers += self.zdata.shape[1]
+        if self.prob_nl is not None:
+            num_biomarkers += self.prob_nl.shape[1]
+        return num_biomarkers
     
     def getNumStages(self):
         return self.__numStages
     
     def reindex(self, index):
-        # TODO: how does this work? and is this correct? > I think so, reindexing should be the same for all biomarkers and then it is correct I think
-        return MixedSustainData(self.zdata[index,], self.prob_nl[index,], self.prob_score[index,], self.__numStages)
+        zdata = self.zdata[index,] if self.zdata is not None else None
+        prob_nl = self.prob_nl[index,] if self.prob_nl is not None else None
+        prob_score = self.prob_score[index,] if self.prob_score is not None else None
+        return MixedSustainData(zdata, prob_nl, prob_score, self.__numStages)
         
 class MixedSustain(AbstractSustain):
 
@@ -48,7 +75,7 @@ class MixedSustain(AbstractSustain):
             self, 
             zscore_data, z_vals, z_max, zscore_biomarker_labels, # zscore parameters
             prob_nl, prob_score, score_vals, ordinal_biomarker_labels, # ordinal parameters
-            N_startpoints, N_S_max, N_iterations_MCMC, 
+            N_startpoints, N_S_max, N_iterations_MCMC,
             output_folder, dataset_name, use_parallel_startpoints, seed=None
             ):
                 
@@ -475,31 +502,35 @@ class MixedSustain(AbstractSustain):
         return ml_sequence, ml_f, ml_likelihood, samples_sequence, samples_f, samples_likelihood
     
     def _plot_sustain_model(self, *args, **kwargs):
-        from utils.figures.training import plot_positional_var
-
-        return plot_positional_var(*args, score_vals=self.mixed_data_vals, **kwargs)
+        # TODO: decide whether to port ZscoreSustain.plot_positional_var or delegate to another model.
+        raise NotImplementedError("TODO: implement MixedSustain plotting")
 
     @staticmethod
     def plot_positional_var():
+        # TODO: implement plotting (or delegate) for MixedSustain.
         pass
 
     @staticmethod
     def generate_data():
+        # TODO: implement data generation for MixedSustain.
         pass
 
     @staticmethod
     def generate_random_model():
+        # TODO: implement random model generation for MixedSustain.
         pass
     
     @classmethod
     def test_sustain(cls):
+        # TODO: implement test helper for MixedSustain.
         pass
 
     def subtype_and_stage_individuals_newData(self, zscore_data_new, prob_nl_new, prob_score_new, samples_sequence, samples_f, N_samples):
 
         numStages_new = self.__sustainData.getNumStages()
-        sustainData_newData = MixedSustainData(zscore_data_new, prob_nl_new, prob_score_new, numstages_new)
+        sustainData_newData = MixedSustainData(zscore_data_new, prob_nl_new, prob_score_new, numStages_new)
 
+        # TODO: implement subtype/stage inference for new data in MixedSustain.
         pass
 
     def compute_likelihood(self, sustainData, N_S, model_samples_sequence, model_samples_f):
@@ -685,4 +716,3 @@ class MixedSustain(AbstractSustain):
         plt.savefig(f'{save_to}.pdf', bbox_inches='tight')
 
         print("plot saved to " + f'{save_to}.eps')
-
