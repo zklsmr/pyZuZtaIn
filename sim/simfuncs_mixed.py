@@ -7,9 +7,15 @@ from pySuStaIn.MixedSustain import MixedSustain
 
 
 def create_score_vals(n_biomarkers, list_scores):
-    assert len(list_scores) == n_biomarkers, (
-        f"list_scores length {len(list_scores)} does not match n_biomarkers {n_biomarkers}"
-    )
+    if n_biomarkers == 0:
+        if len(list_scores) != 0:
+            raise ValueError("list_scores must be empty when n_biomarkers is 0")
+        return np.zeros((0, 0), dtype=int)
+
+    if len(list_scores) != n_biomarkers:
+        raise ValueError(
+            f"list_scores length {len(list_scores)} does not match n_biomarkers {n_biomarkers}"
+        )
     max_score = int(np.max(list_scores))
     score_vals = np.zeros((n_biomarkers, max_score), dtype=int)
     for i, score in enumerate(list_scores):
@@ -38,6 +44,8 @@ def create_distribution(score, prob, dist_type, ind):
 
 
 def create_prob_nl(data, list_scores, prob_correct):
+    if data is None or data.shape[1] == 0:
+        return np.zeros((data.shape[0], 0)) if data is not None else None
     n_subjects, n_biomarkers = data.shape
     prob_nl = np.zeros((n_subjects, n_biomarkers))
     for i, score in enumerate(list_scores):
@@ -48,6 +56,8 @@ def create_prob_nl(data, list_scores, prob_correct):
 
 
 def create_prob_score(data, list_scores, prob_correct):
+    if data is None or data.shape[1] == 0:
+        return np.zeros((data.shape[0], 0, 0)) if data is not None else None
     n_subjects, n_biomarkers = data.shape
     max_score = int(np.max(list_scores))
     prob_score = np.zeros((n_subjects, n_biomarkers, max_score))
@@ -242,32 +252,154 @@ def generate_ordinal_mixed_data(
     return ordinal_data
 
 
-def generate_mixed_data(seed=42):
+def generate_event_mixed_data(
+    n_samples,
+    n_biomarkers_event,
+    n_subtypes,
+    gt_subtypes,
+    gt_stages,
+    gt_sequence,
+    stage_biomarker_index,
+    bool_event_biomarkers,
+    mixture_style="mixture_GMM",
+):
+    if n_biomarkers_event == 0:
+        return None, None, None
+
+    if mixture_style not in ("mixture_GMM",):
+        raise NotImplementedError("Only mixture_GMM event simulation is currently supported in simfuncs_mixed.")
+
+    n_stages = gt_sequence.shape[1]
+    n_biomarkers_total = len(bool_event_biomarkers)
+    event_global_idx = np.where(bool_event_biomarkers)[0]
+
+    stage_event_reached = np.zeros((n_stages + 1, n_biomarkers_total, n_subtypes), dtype=bool)
+    for s in range(n_subtypes):
+        S = gt_sequence[s, :]
+        for stage in range(n_stages):
+            index_justreached = int(S[stage])
+            biomarker_justreached = int(stage_biomarker_index[index_justreached])
+            if bool_event_biomarkers[biomarker_justreached]:
+                stage_event_reached[stage + 1:, biomarker_justreached, s] = True
+
+    mean_controls = np.array([0.0] * n_biomarkers_event)
+    std_controls = np.array([0.25] * n_biomarkers_event)
+    mean_cases = np.array([1.5] * n_biomarkers_event)
+    std_cases = np.random.uniform(0.25, 0.50, n_biomarkers_event)
+
+    event_data = np.zeros((n_samples, n_biomarkers_event))
+    for m in range(n_samples):
+        subtype_m = gt_subtypes[m]
+        stage_m = int(gt_stages[m, 0])
+        reached_global = stage_event_reached[stage_m, :, subtype_m]
+        reached_local = reached_global[event_global_idx]
+
+        for b in range(n_biomarkers_event):
+            if reached_local[b]:
+                event_data[m, b] = np.random.normal(mean_cases[b], std_cases[b])
+            else:
+                event_data[m, b] = np.random.normal(mean_controls[b], std_controls[b])
+
+    event_prob_no = np.zeros((n_samples, n_biomarkers_event))
+    event_prob_yes = np.zeros((n_samples, n_biomarkers_event))
+    for b in range(n_biomarkers_event):
+        control_pdf = norm.pdf(event_data[:, b], loc=mean_controls[b], scale=std_controls[b])
+        case_pdf = norm.pdf(event_data[:, b], loc=mean_cases[b], scale=std_cases[b])
+        normalizer = control_pdf + case_pdf + 1e-250
+        event_prob_no[:, b] = control_pdf / normalizer
+        event_prob_yes[:, b] = case_pdf / normalizer
+
+    return event_data, event_prob_yes, event_prob_no
+
+
+def generate_mixed_data(
+    seed=42,
+    n_samples=500,
+    n_subtypes=2,
+    n_biomarkers_zscore=4,
+    n_biomarkers_ordinal=0,
+    n_biomarkers_event=0,
+    z_vals=None,
+    z_max=None,
+    list_scores=None,
+    prob_correct=None,
+    mixture_style="mixture_GMM",
+):
     np.random.seed(seed)
 
-    n_samples = 300
-    n_subtypes = 3
+    if n_biomarkers_zscore < 0 or n_biomarkers_ordinal < 0 or n_biomarkers_event < 0:
+        raise ValueError("n_biomarkers_* values must be >= 0")
 
-    n_biomarkers_zscore = 4
-    n_biomarkers_ordinal = 3
-    n_biomarkers_event = 2
+    if n_biomarkers_zscore == 0:
+        if z_vals is None:
+            z_vals = np.zeros((0, 0), dtype=int)
+        else:
+            z_vals = np.asarray(z_vals)
+            if z_vals.shape[0] != 0:
+                raise ValueError("z_vals must have 0 rows when n_biomarkers_zscore is 0")
 
-    z_vals = np.tile(np.array([1, 2, 3]), (n_biomarkers_zscore, 1))
-    z_max = np.array([5] * n_biomarkers_zscore)
+        if z_max is None:
+            z_max = np.array([], dtype=int)
+        else:
+            z_max = np.asarray(z_max)
+            if z_max.shape[0] != 0:
+                raise ValueError("z_max must be empty when n_biomarkers_zscore is 0")
+    else:
+        if z_vals is None:
+            z_vals = np.tile(np.array([1, 2, 3]), (n_biomarkers_zscore, 1))
+        else:
+            z_vals = np.asarray(z_vals)
+            if z_vals.shape[0] != n_biomarkers_zscore:
+                raise ValueError(
+                    f"z_vals has {z_vals.shape[0]} rows but n_biomarkers_zscore is {n_biomarkers_zscore}"
+                )
 
-    ordinal_max_scores = np.array([3] * n_biomarkers_ordinal)
-    event_max_scores = np.array([1] * n_biomarkers_event)
+        if z_max is None:
+            z_max = np.array([5] * n_biomarkers_zscore)
+        else:
+            z_max = np.asarray(z_max)
+            if z_max.shape[0] != n_biomarkers_zscore:
+                raise ValueError(
+                    f"z_max length {z_max.shape[0]} does not match n_biomarkers_zscore {n_biomarkers_zscore}"
+                )
 
-    list_scores = np.concatenate([ordinal_max_scores, event_max_scores])
-    prob_correct = np.concatenate([
-        np.full(n_biomarkers_ordinal, 0.9),
-        np.full(n_biomarkers_event, 0.95),
-    ])
+    n_biomarkers_ordinal_total = n_biomarkers_ordinal + n_biomarkers_event
+    if n_biomarkers_ordinal_total > 0:
+        if list_scores is None:
+            ordinal_max_scores = np.array([3] * n_biomarkers_ordinal)
+            event_max_scores = np.array([1] * n_biomarkers_event)
+            list_scores = np.concatenate([ordinal_max_scores, event_max_scores])
+        else:
+            list_scores = np.asarray(list_scores)
+            if list_scores.shape[0] != n_biomarkers_ordinal_total:
+                raise ValueError(
+                    "list_scores length does not match n_biomarkers_ordinal + n_biomarkers_event"
+                )
 
-    score_vals = create_score_vals(n_biomarkers_ordinal + n_biomarkers_event, list_scores)
+        if prob_correct is None:
+            prob_correct = np.concatenate([
+                np.full(n_biomarkers_ordinal, 0.70),
+                np.full(n_biomarkers_event, 0.75),
+            ])
+        else:
+            prob_correct = np.asarray(prob_correct)
+            if prob_correct.shape[0] != n_biomarkers_ordinal_total:
+                raise ValueError(
+                    "prob_correct length does not match n_biomarkers_ordinal + n_biomarkers_event"
+                )
+
+        score_vals = create_score_vals(n_biomarkers_ordinal_total, list_scores)
+    else:
+        if list_scores is not None and len(list_scores) != 0:
+            raise ValueError("list_scores must be empty when there are no ordinal/event biomarkers")
+        if prob_correct is not None and len(prob_correct) != 0:
+            raise ValueError("prob_correct must be empty when there are no ordinal/event biomarkers")
+        list_scores = np.array([])
+        prob_correct = np.array([])
+        score_vals = np.zeros((0, 0), dtype=int)
 
     n_biomarkers_total = n_biomarkers_zscore + n_biomarkers_ordinal + n_biomarkers_event
-    max_score_value = max(z_vals.shape[1], score_vals.shape[1])
+    max_score_value = max(z_vals.shape[1] if z_vals.size else 0, score_vals.shape[1] if score_vals.size else 0)
 
     mixed_data_vals = np.zeros((n_biomarkers_total, max_score_value))
 
@@ -283,6 +415,15 @@ def generate_mixed_data(seed=42):
     bool_ordinal_biomarkers = np.array(
         [False] * n_biomarkers_zscore
         + [True] * (n_biomarkers_ordinal + n_biomarkers_event)
+    )
+    bool_ordinal_only_biomarkers = np.array(
+        [False] * n_biomarkers_zscore
+        + [True] * n_biomarkers_ordinal
+        + [False] * n_biomarkers_event
+    )
+    bool_event_biomarkers = np.array(
+        [False] * (n_biomarkers_zscore + n_biomarkers_ordinal)
+        + [True] * n_biomarkers_event
     )
 
     gt_sequence = generate_random_sequence(mixed_data_vals, n_subtypes, seed=seed)
@@ -316,29 +457,55 @@ def generate_mixed_data(seed=42):
         n_biomarkers_total=n_biomarkers_total,
     )
 
-    # Event biomarkers are treated as ordinal with max score 1.
-    ordinal_data = generate_ordinal_mixed_data(
-        n_samples=n_samples,
-        n_biomarkers_ordinal=n_biomarkers_ordinal + n_biomarkers_event,
-        n_subtypes=n_subtypes,
-        prob_correct=prob_correct,
-        ordinal_scores=list_scores,
-        gt_subtypes=gt_subtypes,
-        gt_stages=gt_stages,
-        gt_sequence=gt_sequence,
-        stage_biomarker_index=stage_biomarker_index,
-        stage_score=stage_score,
-        bool_ordinal_biomarkers=bool_ordinal_biomarkers,
-    )
+    ordinal_only_data = None
+    event_data = None
+    ordinal_prob_nl = None
+    ordinal_prob_score = None
+    event_prob_yes = None
+    event_prob_no = None
 
-    ordinal_only_data = ordinal_data[:, :n_biomarkers_ordinal]
-    event_data = ordinal_data[:, n_biomarkers_ordinal:]
+    if n_biomarkers_ordinal > 0:
+        ordinal_data = generate_ordinal_mixed_data(
+            n_samples=n_samples,
+            n_biomarkers_ordinal=n_biomarkers_ordinal,
+            n_subtypes=n_subtypes,
+            prob_correct=prob_correct[:n_biomarkers_ordinal],
+            ordinal_scores=list_scores[:n_biomarkers_ordinal],
+            gt_subtypes=gt_subtypes,
+            gt_stages=gt_stages,
+            gt_sequence=gt_sequence,
+            stage_biomarker_index=stage_biomarker_index,
+            stage_score=stage_score,
+            bool_ordinal_biomarkers=bool_ordinal_only_biomarkers,
+        )
+        ordinal_only_data = ordinal_data
+        ordinal_prob_nl = create_prob_nl(ordinal_only_data, list_scores[:n_biomarkers_ordinal], prob_correct[:n_biomarkers_ordinal])
+        ordinal_prob_score = create_prob_score(ordinal_only_data, list_scores[:n_biomarkers_ordinal], prob_correct[:n_biomarkers_ordinal])
+    else:
+        ordinal_data = None
+
+    if n_biomarkers_event > 0:
+        event_data, event_prob_yes, event_prob_no = generate_event_mixed_data(
+            n_samples=n_samples,
+            n_biomarkers_event=n_biomarkers_event,
+            n_subtypes=n_subtypes,
+            gt_subtypes=gt_subtypes,
+            gt_stages=gt_stages,
+            gt_sequence=gt_sequence,
+            stage_biomarker_index=stage_biomarker_index,
+            bool_event_biomarkers=bool_event_biomarkers,
+            mixture_style=mixture_style,
+        )
 
     return {
         "zscore_data": zscore_data,
         "ordinal_data": ordinal_data,
         "ordinal_only_data": ordinal_only_data,
         "event_data": event_data,
+        "ordinal_prob_nl": ordinal_prob_nl,
+        "ordinal_prob_score": ordinal_prob_score,
+        "event_prob_yes": event_prob_yes,
+        "event_prob_no": event_prob_no,
         "z_vals": z_vals,
         "z_max": z_max,
         "score_vals": score_vals,
@@ -366,14 +533,25 @@ def main():
     n_biomarkers_ordinal = data["n_biomarkers_ordinal"]
     n_biomarkers_event = data["n_biomarkers_event"]
 
-    prob_nl = create_prob_nl(ordinal_data, list_scores, prob_correct)
-    prob_score = create_prob_score(ordinal_data, list_scores, prob_correct)
+    ordinal_prob_nl = data.get("ordinal_prob_nl")
+    ordinal_prob_score = data.get("ordinal_prob_score")
+    event_prob_yes = data.get("event_prob_yes")
+    event_prob_no = data.get("event_prob_no")
 
     zscore_labels = [f"zscore_{i+1}" for i in range(zscore_data.shape[1])]
-    ordinal_labels = (
-        [f"ordinal_{i+1}" for i in range(n_biomarkers_ordinal)]
-        + [f"event_{i+1}" for i in range(n_biomarkers_event)]
-    )
+    ordinal_labels = [f"ordinal_{i+1}" for i in range(n_biomarkers_ordinal)]
+    event_labels = [f"event_{i+1}" for i in range(n_biomarkers_event)]
+
+    if ordinal_prob_nl is not None and n_biomarkers_ordinal > 0:
+        ordinal_score_vals = score_vals[:n_biomarkers_ordinal, :]
+    else:
+        ordinal_prob_nl = None
+        ordinal_prob_score = None
+        ordinal_score_vals = []
+
+    if event_prob_no is None or n_biomarkers_event == 0:
+        event_prob_no = None
+        event_prob_yes = None
 
     N_startpoints = 10
     N_S_max = 3
@@ -388,10 +566,13 @@ def main():
         z_vals=z_vals,
         z_max=z_max,
         zscore_biomarker_labels=zscore_labels,
-        prob_nl=prob_nl,
-        prob_score=prob_score,
-        score_vals=score_vals,
+        ordinal_prob_nl=ordinal_prob_nl,
+        ordinal_prob_score=ordinal_prob_score,
+        ordinal_score_vals=ordinal_score_vals,
         ordinal_biomarker_labels=ordinal_labels,
+        event_prob_yes=event_prob_yes,
+        event_prob_no=event_prob_no,
+        event_biomarker_labels=event_labels,
         N_startpoints=N_startpoints,
         N_S_max=N_S_max,
         N_iterations_MCMC=N_iterations_MCMC,
