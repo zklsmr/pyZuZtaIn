@@ -12,13 +12,32 @@ import warnings
 from tqdm import tqdm
 
 class MixedSustainData(AbstractSustainData):
+    """
+    Data container for Mixed-SuStaIn (z-score + ordinal + event inputs).
+    """
 
     def __init__(self, zdata, prob_nl, prob_score, numStages):
+        """
+        Parameters
+        ----------
+        zdata : ndarray or None
+            Z-scored data.
+            Shape: (n_subjects, n_zscore_biomarkers).
+        prob_nl : ndarray or None
+            P(normal/no-event) for ordinal/event biomarkers.
+            Shape: (n_subjects, n_ordinal_event_biomarkers).
+        prob_score : ndarray or None
+            P(score/yes-event) for ordinal/event biomarkers.
+            Shape: (n_subjects, n_ordinal_event_biomarkers, n_scores).
+        numStages : int
+            Total number of stages in the mixed model.
+        """
         self.zdata = zdata
         self.prob_nl = prob_nl
         self.prob_score = prob_score
         self.__numStages = numStages
         self.__numSamples = self._validate_and_get_num_samples()
+
 
     def _validate_and_get_num_samples(self):
         num_samples = None
@@ -67,14 +86,13 @@ class MixedSustainData(AbstractSustainData):
         
 class MixedSustain(AbstractSustain):
     """
-    MixedSuStaIn combines:
-    - piecewise linear z-score biomarkers (continuous trajectories), and
-    - ordinal/event biomarkers via a shared discrete pathway.
+    MixedSuStaIn combines the logic of Z-Score SuStaIn and ordinal SuStaIn to jointly
+    model three biomarker types: z-score, ordinal, and event.
 
-    Event biomarkers are represented as a special ordinal case with a
-    single abnormal score level per biomarker (`score_vals=1`).
-    In that setting, `prob_nl` maps to mixture `L_no`, and the single
-    `prob_score` level maps to mixture `L_yes`.
+    Event biomarkers are modeled in ordinal SuStaIn as ordinal biomarkers with exactly one
+    discrete step (`score_vals=1`). Ordinal biomarkers use discrete score steps; the model
+    combines both by building one shared discrete block, where `prob_nl` is the no-event/normal
+    mixture (`L_no`) and `prob_score` provides the step/yes-event mixture (`L_yes`).
     """
 
     @staticmethod
@@ -147,6 +165,59 @@ class MixedSustain(AbstractSustain):
             N_startpoints, N_S_max, N_iterations_MCMC,
             output_folder, dataset_name, use_parallel_startpoints, seed=None
             ):
+        """
+        The initializer for the mixed (z-score + ordinal + event) implementation of AbstractSustain.
+
+        Parameters
+        ----------
+        zscore_data : ndarray
+            Z-scored data (positive z-scores).
+            Shape: (n_subjects, n_zscore_biomarkers).
+        z_vals : ndarray
+            Z-score thresholds for each z-score biomarker.
+            Shape: (n_zscore_biomarkers, n_zscore_thresholds).
+        z_max : ndarray
+            Maximum z-score for each z-score biomarker.
+            Shape: (n_zscore_biomarkers, 1).
+        zscore_biomarker_labels : list[str]
+            Names of z-score biomarkers.
+
+        ordinal_prob_nl : ndarray or None
+            P(normal) for ordinal biomarkers.
+            Shape: (n_subjects, n_ordinal_biomarkers).
+        ordinal_prob_score : ndarray or None
+            P(score level) for ordinal biomarkers.
+            Shape: (n_subjects, n_ordinal_biomarkers, n_scores).
+        ordinal_score_vals : ndarray or None
+            Discrete score levels per ordinal biomarker.
+            Shape: (n_ordinal_biomarkers, n_scores).
+        ordinal_biomarker_labels : list[str]
+            Names of ordinal biomarkers.
+
+        event_prob_yes : ndarray or None
+            P(event/abnormal) for event biomarkers.
+            Shape: (n_subjects, n_event_biomarkers).
+        event_prob_no : ndarray or None
+            P(no-event/normal) for event biomarkers.
+            Shape: (n_subjects, n_event_biomarkers).
+        event_biomarker_labels : list[str]
+            Names of event biomarkers.
+
+        N_startpoints : int
+            Number of startpoints for the maximum likelihood step, typically 25.
+        N_S_max : int
+            Maximum number of subtypes, should be 1 or more.
+        N_iterations_MCMC : int
+            Number of MCMC iterations, typically 1e5 or 1e6 (lower for debugging).
+        output_folder : str
+            Where to save pickle files, etc.
+        dataset_name : str
+            Name used for output file naming.
+        use_parallel_startpoints : bool
+            Whether to parallelize the maximum likelihood loop.
+        seed : int or None
+            Random number seed.
+        """
         # ----- z-score inputs
         if zscore_data is not None and not np.all(zscore_data == 0):
             num_zscore_biomarkers = zscore_data.shape[1]
@@ -282,11 +353,13 @@ class MixedSustain(AbstractSustain):
 
     def _initialise_sequence(self, sustainData, rng): # done :)
         """
-        Randomly initialise a sequence ensuring that biomarkers are monotonically increasing 
+        Randomly initialize a valid sequence with monotonic biomarker progression.
 
-        OUTPUTS:
-        S - a random mixed input data model under the condition that each biomarker
-            is monotonically increasing
+        Output
+        ------
+        S : ndarray
+            Random mixed-model sequence with per-biomarker monotonicity.
+            Shape: (1, n_stages).
         """
         N = self.num_stages
         S = np.zeros(N)
@@ -328,25 +401,29 @@ class MixedSustain(AbstractSustain):
         """
         Compute p(data | stage, subtype-sequence S) for one subtype sequence.
 
-        The likelihood factorizes over biomarkers:
-        - z-score biomarkers use Gaussian likelihood around stage-dependent
-          expected values;
-        - ordinal/event biomarkers use class probabilities from prob_nl/prob_score.
+        p_perm_k is computed by factorizing across biomarkers: first build a per-biomarker
+        likelihood tensor p_perm_k_biomarkers with shape (n_subjects, n_stages + 1, n_biomarkers),
+        using Gaussian likelihoods for z-score biomarkers and prob_nl/prob_score for
+        ordinal/event biomarkers, then multiply across biomarkers (np.prod(..., axis=2))
+        and apply a uniform stage prior.
 
-        Event/mixture biomarkers are handled by the ordinal branch with one
-        abnormal score level per biomarker.
+        Output
+        ------
+        p_perm_k : ndarray
+            Stage likelihoods for each subject.
+            Shape: (n_subjects, n_stages + 1).
         """
         M = sustainData.getNumSamples()
         N = sustainData.getNumStages()
-        ordinal_mask = ~self.bool_zscore_biomarkers
-        n_ordinal = int(np.sum(ordinal_mask))
+        ordinal_event_mask = ~self.bool_zscore_biomarkers
+        n_ordinal_event = int(np.sum(ordinal_event_mask))
 
         if sustainData.prob_nl is not None:
             prob_nl = sustainData.prob_nl.copy()
             prob_score = sustainData.prob_score.copy()
         else:
-            prob_nl = np.empty((M, n_ordinal))
-            prob_score = np.empty((M, n_ordinal, 0))
+            prob_nl = np.empty((M, n_ordinal_event))
+            prob_score = np.empty((M, n_ordinal_event, 0))
 
         p_perm_k_biomarkers = np.zeros((M, N + 1, self.num_biomarkers))
 
@@ -385,28 +462,28 @@ class MixedSustain(AbstractSustain):
             x = np.transpose(x, (0, 2, 1))
             p_perm_k_biomarkers[:, :, self.bool_zscore_biomarkers] = stats.norm.pdf(x)
 
-        if n_ordinal > 0:
-            stage_value_ordinal = np.zeros((self.num_stages + 1, self.num_biomarkers))
+        if n_ordinal_event > 0:
+            stage_value_ordinal_event = np.zeros((self.num_stages + 1, self.num_biomarkers))
             for stage in range(self.num_stages):
                 index_justreached = int(S[stage])
                 biomarker_justreached = int(self.stage_biomarker_index[0][index_justreached])
                 stage_value_justreached = int(self.stage_score[0][index_justreached])
                 if not self.bool_zscore_biomarkers[biomarker_justreached]:
                     index = stage + 1
-                    stage_value_ordinal[index:, biomarker_justreached] = stage_value_justreached
-            stage_value_ordinal = stage_value_ordinal[:, ordinal_mask]
-            p_perm_k_biomarkers[:, 0, ordinal_mask] = prob_nl
+                    stage_value_ordinal_event[index:, biomarker_justreached] = stage_value_justreached
+            stage_value_ordinal_event = stage_value_ordinal_event[:, ordinal_event_mask]
+            p_perm_k_biomarkers[:, 0, ordinal_event_mask] = prob_nl
 
             for stage in range(N):
                 probability_stage = prob_nl.copy()
-                stage_value_justreached = stage_value_ordinal[stage + 1]
+                stage_value_justreached = stage_value_ordinal_event[stage + 1]
 
                 for i, value in enumerate(stage_value_justreached):
                     if value > 0:
                         idx_value = int(value) - 1
                         probability_stage[:, i] = prob_score[:, i, idx_value]
 
-                p_perm_k_biomarkers[:, stage + 1, ordinal_mask] = probability_stage
+                p_perm_k_biomarkers[:, stage + 1, ordinal_event_mask] = probability_stage
 
         coeff = 1. / float(N + 1)
         p_perm_k = np.prod(p_perm_k_biomarkers, 2)
@@ -415,6 +492,7 @@ class MixedSustain(AbstractSustain):
         return p_perm_k
 
     def _optimise_parameters(self, sustainData, S_init, f_init, rng):
+        """ Optimise the parameters of the SuStaIn model."""
         N_S = S_init.shape[0]
         M = sustainData.getNumSamples()
         N = sustainData.getNumStages()
@@ -522,6 +600,7 @@ class MixedSustain(AbstractSustain):
         return S_opt, f_opt, likelihood_opt
 
     def _perform_mcmc(self, sustainData, seq_init, f_init, n_iterations, seq_sigma, f_sigma):
+        """Take MCMC samples of the uncertainty in the SuStaIn model parameters"""
         N = sustainData.getNumStages()
         N_S = seq_init.shape[0]
 
@@ -616,6 +695,7 @@ class MixedSustain(AbstractSustain):
         return ml_sequence, ml_f, ml_likelihood, samples_sequence, samples_f, samples_likelihood
     
     def _plot_sustain_model(self, *args, **kwargs):
+        """Plot mixed SuStaIn model outputs (delegates to plotting utilities)."""
         return MixedSustain.plot_positional_var(*args, score_vals=self.mixed_data_vals, **kwargs)
 
     def subtype_and_stage_individuals_newData(self, zscore_data_new, ordinal_prob_nl_new, ordinal_prob_score_new, event_prob_yes_new, event_prob_no_new, samples_sequence, samples_f, N_samples):
@@ -686,6 +766,7 @@ class MixedSustain(AbstractSustain):
 
     @staticmethod
     def plot_positional_var(samples_sequence, samples_f, n_samples, score_vals, biomarker_labels=None, ml_f_EM=None, cval=False, subtype_order=None, biomarker_order=None, title_font_size=12, stage_font_size=10, stage_label='SuStaIn Stage', stage_rot=0, stage_interval=1, label_font_size=10, label_rot=0, cmap="original", biomarker_colours=None, figsize=None, subtype_titles=None, separate_subtypes=False, save_path=None, save_kwargs={}):
+        """Plot positional variance diagrams for mixed score matrices."""
         N_S = samples_sequence.shape[0]
         N_bio = score_vals.shape[0]
 
@@ -1087,7 +1168,7 @@ class MixedSustain(AbstractSustain):
             ordinal_global_idx = np.where(~bool_zscore_biomarkers)[0]
             ordinal_local_idx = {g: i for i, g in enumerate(ordinal_global_idx)}
 
-            stage_value_ordinal = np.zeros((n_stages + 1, n_ordinal_event, n_subtypes))
+            stage_value_ordinal_event = np.zeros((n_stages + 1, n_ordinal_event, n_subtypes))
             for s in range(n_subtypes):
                 S = gt_ordering[s, :].astype(int)
                 for stage in range(n_stages):
@@ -1097,7 +1178,7 @@ class MixedSustain(AbstractSustain):
                         continue
                     biomarker_l = ordinal_local_idx[biomarker_g]
                     score_reached = int(stage_score[event_idx])
-                    stage_value_ordinal[stage + 1:, biomarker_l, s] = score_reached
+                    stage_value_ordinal_event[stage + 1:, biomarker_l, s] = score_reached
 
             # ----- ordinal branch (discrete scores)
             if n_ordinal_biomarkers > 0:
@@ -1122,7 +1203,7 @@ class MixedSustain(AbstractSustain):
                 for m in range(n_samples):
                     subtype_m = subtypes[m]
                     stage_m = int(stages[m])
-                    score_reached = stage_value_ordinal[stage_m, :n_ordinal_biomarkers, subtype_m]
+                    score_reached = stage_value_ordinal_event[stage_m, :n_ordinal_biomarkers, subtype_m]
                     for b, value in enumerate(score_reached):
                         if value > 0:
                             idx_value = int(value)
@@ -1154,7 +1235,7 @@ class MixedSustain(AbstractSustain):
                 std_cases = rng.uniform(0.25, 0.50, n_event_biomarkers)
 
                 event_data = np.zeros((n_samples, n_event_biomarkers))
-                event_reached = stage_value_ordinal[:, n_ordinal_biomarkers:, :] > 0
+                event_reached = stage_value_ordinal_event[:, n_ordinal_biomarkers:, :] > 0
 
                 for m in range(n_samples):
                     subtype_m = subtypes[m]
