@@ -15,6 +15,7 @@ Please also cite the corresponding progression pattern model you use:
    with [Gaussian mixture modelling](https://doi.org/10.1093/brain/awu176) 
    or [kernel density estimation](https://doi.org/10.1002/alz.12083)).
 3. [The scored events model (i.e. OrdinalSustain)](https://doi.org/10.3389/frai.2021.613261)   
+4. [The mixed events model (i.e. MixedTypeSustain)](https://arxiv.org/abs/2602.22018)
    
 Thanks a lot for supporting this project.
 
@@ -62,7 +63,7 @@ Dependencies
 ============
 - Python >= 3.7
 - [setuptools](https://pypi.org/project/setuptools/)
-- [NumPy](https://github.com/numpy/numpy) >= 1.18
+- [NumPy](https://github.com/numpy/numpy) >= 1.18, <2.4.0
 - [SciPy](https://github.com/scipy/scipy)
 - [Matplotlib](https://github.com/matplotlib/matplotlib)
 - [Scikit-learn](https://scikit-learn.org) for cross-validation
@@ -95,6 +96,8 @@ sustainType can be set to:
   - `mixture_GMM` : SuStaIn with an event-based model progression pattern, with Gaussian mixture modelling of normal/abnormal.
   - `mixture_KDE`:  SuStaIn with an event-based model progression pattern, with Kernel Density Estimation (KDE) mixture modelling of normal/abnormal.
   - `zscore`:       SuStaIn with a piecewise linear z-score model progression pattern.
+  - `ordinal`:      SuStaIn with a scored events model progression pattern.
+  - `mixedtype`:    SuStaIn with a mixed events model progression pattern integrating the likelihoods of the piecewise linear z-score model, the event-based model, and the scored events model. 
   
  See `simrun.py` for examples of how to run these different implementations.
 
@@ -111,6 +114,7 @@ Methods:
 - The event-based model: [Fonteijn et al. 2012](https://doi.org/10.1016/j.neuroimage.2012.01.062), (with Gaussian mixture modelling [Young et al. 2014](https://doi.org/10.1093/brain/awu176) or non-parametric kernel density estimation [Firth et al. 2020](https://doi.org/10.1002/alz.12083))
 - The piecewise linear z-score model: [Young et al. 2018](https://doi.org/10.1038/s41467-018-05892-0) 
 - The scored events model ('Ordinal SuStaIn'): [Young et al. 2021](https://doi.org/10.3389/frai.2021.613261)  
+- The mixed events model ('Mixed Type SuStaIn'): [de Jonge et al. 2026](https://arxiv.org/abs/2602.22018)
 
 
 Applications:
