@@ -35,7 +35,7 @@ warnings.filterwarnings("ignore",category=cbook.mplDeprecation)
 
 from pySuStaIn.ZscoreSustain  import ZscoreSustain
 from pySuStaIn.MixtureSustain import MixtureSustain
-from pySuStaIn.MixedSustain import MixedSustain
+from pySuStaIn.MixedTypeSustain import MixedTypeSustain
 import simfuncs_mixed
 
 import sklearn.model_selection
@@ -222,7 +222,7 @@ def main():
         ground_truth_stages     = data["gt_stages"]
         N_S_ground_truth        = ground_truth_sequences.shape[0]
 
-        sustain                 = MixedSustain(
+        sustain                 = MixedTypeSustain(
             zscore_data=zscore_data,
             z_vals=z_vals,
             z_max=z_max,

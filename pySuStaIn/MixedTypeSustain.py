@@ -11,7 +11,7 @@ import warnings
 
 from tqdm import tqdm
 
-class MixedSustainData(AbstractSustainData):
+class MixedTypeSustainData(AbstractSustainData):
     """
     Data container for Mixed-SuStaIn (z-score + ordinal + event inputs).
     """
@@ -61,7 +61,7 @@ class MixedSustainData(AbstractSustainData):
                 assert num_samples == self.prob_score.shape[0], "zdata/prob_nl and prob_score must have same number of samples"
 
         if num_samples is None:
-            raise ValueError("MixedSustainData requires zdata or prob_nl/prob_score.")
+            raise ValueError("MixedTypeSustainData requires zdata or prob_nl/prob_score.")
         return num_samples
 
     def getNumSamples(self):
@@ -82,11 +82,11 @@ class MixedSustainData(AbstractSustainData):
         zdata = self.zdata[index,] if self.zdata is not None else None
         prob_nl = self.prob_nl[index,] if self.prob_nl is not None else None
         prob_score = self.prob_score[index,] if self.prob_score is not None else None
-        return MixedSustainData(zdata, prob_nl, prob_score, self.__numStages)
+        return MixedTypeSustainData(zdata, prob_nl, prob_score, self.__numStages)
         
-class MixedSustain(AbstractSustain):
+class MixedTypeSustain(AbstractSustain):
     """
-    MixedSuStaIn combines the logic of Z-Score SuStaIn and ordinal SuStaIn to jointly
+    MixedTypeSuStaIn combines the logic of Z-Score SuStaIn and ordinal SuStaIn to jointly
     model three biomarker types: z-score, ordinal, and event.
 
     Event biomarkers are modeled in ordinal SuStaIn as ordinal biomarkers with exactly one
@@ -267,7 +267,7 @@ class MixedSustain(AbstractSustain):
             subject_counts.append(event_prob_yes.shape[0])
 
         if len(subject_counts) == 0:
-            raise ValueError("MixedSustain requires zscore and/or ordinal/event data")
+            raise ValueError("MixedTypeSustain requires zscore and/or ordinal/event data")
         assert len(set(subject_counts)) == 1, "number of subjects does not match across provided data blocks"
         num_subjects = subject_counts[0]
 
@@ -342,14 +342,14 @@ class MixedSustain(AbstractSustain):
         self.dataset_name = dataset_name
         self.use_parallel_startpoints = use_parallel_startpoints
 
-        # MixedSustain keeps merged ordinal/event prob_score in 3D (M, B, n_scores).
+        # MixedTypeSustain keeps merged ordinal/event prob_score in 3D (M, B, n_scores).
         # Event/mixture biomarkers correspond to n_scores=1.
-        self.__sustainData = MixedSustainData(zscore_data, combined_prob_nl, combined_prob_score, self.num_stages)
+        self.__sustainData = MixedTypeSustainData(zscore_data, combined_prob_nl, combined_prob_score, self.num_stages)
 
         # initialise abstract sustain
         super().__init__(self.__sustainData, N_startpoints, N_S_max, N_iterations_MCMC, output_folder, dataset_name, use_parallel_startpoints, seed)
 
-        print("Init done for MixedSustain")
+        print("Init done for MixedTypeSustain")
 
     def _initialise_sequence(self, sustainData, rng): # done :)
         """
@@ -696,7 +696,7 @@ class MixedSustain(AbstractSustain):
     
     def _plot_sustain_model(self, *args, **kwargs):
         """Plot mixed SuStaIn model outputs (delegates to plotting utilities)."""
-        return MixedSustain.plot_positional_var(*args, score_vals=self.mixed_data_vals, **kwargs)
+        return MixedTypeSustain.plot_positional_var(*args, score_vals=self.mixed_data_vals, **kwargs)
 
     def subtype_and_stage_individuals_newData(self, zscore_data_new, ordinal_prob_nl_new, ordinal_prob_score_new, event_prob_yes_new, event_prob_no_new, samples_sequence, samples_f, N_samples):
         """Subtype/stage new subjects from split mixed inputs (z-score, ordinal, event)."""
@@ -750,7 +750,7 @@ class MixedSustain(AbstractSustain):
             ordinal_prob_nl_new, ordinal_prob_score_new, self.ordinal_score_vals, event_prob_yes_new, event_prob_no_new
         )
 
-        sustainData_newData = MixedSustainData(zscore_data_new, prob_nl_new, prob_score_new, num_stages_new)
+        sustainData_newData = MixedTypeSustainData(zscore_data_new, prob_nl_new, prob_score_new, num_stages_new)
 
         ml_subtype,         \
         prob_ml_subtype,    \
@@ -918,7 +918,7 @@ class MixedSustain(AbstractSustain):
 
     @classmethod
     def test_sustain(cls, n_biomarkers, n_samples, n_subtypes, ground_truth_subtypes, sustain_kwargs, seed=42):
-        """Build a synthetic mixed dataset and return an initialized MixedSustain model."""
+        """Build a synthetic mixed dataset and return an initialized MixedTypeSustain model."""
         rng = np.random.default_rng(seed)
 
         n_biomarkers = int(n_biomarkers)
@@ -1034,7 +1034,7 @@ class MixedSustain(AbstractSustain):
         if n_event_biomarkers > 0:
             score_vals[-n_event_biomarkers:, 0] = 1
 
-        stage_score, stage_biomarker_index = MixedSustain._build_stage_index(score_vals)
+        stage_score, stage_biomarker_index = MixedTypeSustain._build_stage_index(score_vals)
 
         N = stage_score.shape[0]
         S = np.zeros((N_S, N), dtype=int)
@@ -1098,7 +1098,7 @@ class MixedSustain(AbstractSustain):
         n_zscore = int(bool_zscore_biomarkers.sum())
         n_ordinal_event = int((~bool_zscore_biomarkers).sum())
 
-        stage_score, stage_biomarker_index = MixedSustain._build_stage_index(score_vals)
+        stage_score, stage_biomarker_index = MixedTypeSustain._build_stage_index(score_vals)
         n_stages = stage_score.shape[0]
 
         if np.any(stages < 0) or np.any(stages > n_stages):
@@ -1226,7 +1226,7 @@ class MixedSustain(AbstractSustain):
                 if mixture_style not in ("mixture_GMM", "mixture_KDE"):
                     raise ValueError("mixture_style must be 'mixture_GMM' or 'mixture_KDE'")
                 if mixture_style == "mixture_KDE":
-                    raise NotImplementedError("mixture_KDE event generation is not validated in MixedSustain.generate_data yet.")
+                    raise NotImplementedError("mixture_KDE event generation is not validated in MixedTypeSustain.generate_data yet.")
 
                 mean_controls = np.zeros(n_event_biomarkers)
                 std_controls = np.array([0.25] * n_event_biomarkers)

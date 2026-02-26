@@ -6,4 +6,4 @@ from .MixtureSustain import *
 from .ZscoreSustain import *
 from .OrdinalSustain import *
 from .ZScoreSustainMissingData import *
-from .MixedSustain import *
+from .MixedTypeSustain import *

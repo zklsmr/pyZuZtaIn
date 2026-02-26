@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 from scipy.stats import norm
 
-from pySuStaIn.MixedSustain import MixedSustain
+from pySuStaIn.MixedTypeSustain import MixedTypeSustain
 
 
 def create_score_vals(n_biomarkers, list_scores):
@@ -561,7 +561,7 @@ def main():
     output_folder = Path.cwd() / f"{dataset_name}_output"
     output_folder.mkdir(parents=True, exist_ok=True)
 
-    sustain = MixedSustain(
+    sustain = MixedTypeSustain(
         zscore_data=zscore_data,
         z_vals=z_vals,
         z_max=z_max,
