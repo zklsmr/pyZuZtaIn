@@ -35,6 +35,8 @@ warnings.filterwarnings("ignore",category=cbook.mplDeprecation)
 
 from pySuStaIn.ZscoreSustain  import ZscoreSustain
 from pySuStaIn.MixtureSustain import MixtureSustain
+from pySuStaIn.MixedTypeSustain import MixedTypeSustain
+import simfuncs_mixed
 
 import sklearn.model_selection
 
@@ -59,8 +61,8 @@ def main():
     # number of starting points
     N_startpoints           = 25
     # maximum number of inferred subtypes - note that this could differ from N_S_ground_truth
-    N_S_max                 = 4
-    N_iterations_MCMC       = int(1e5)  #Generally recommend either 1e5 or 1e6 (the latter may be slow though) in practice
+    N_S_max                 = 2
+    N_iterations_MCMC       = int(1e4)  #Generally recommend either 1e5 or 1e6 (the latter may be slow though) in practice
 
     #labels for plotting are biomarker names
     SuStaInLabels           = BiomarkerNames
@@ -69,10 +71,11 @@ def main():
     validate                = True
     N_folds                 = 3         #Set low to speed things up here, but generally recommend 10 in practice
 
-    #either 'mixture_GMM' or 'mixture_KDE' or 'zscore'
-    sustainType             = 'mixture_GMM'
+    # either 'mixture_GMM' or 'mixture_KDE' or 'zscore' or 'mixed'
+    sustainType             = 'mixed'
 
-    assert sustainType in ("mixture_GMM", "mixture_KDE", "zscore"), "sustainType should be either mixture_GMM, mixture_KDE or zscore"
+    assert sustainType in ("mixture_GMM", "mixture_KDE", "zscore", "mixed"), \
+        "sustainType should be either mixture_GMM, mixture_KDE, zscore, or mixed"
 
     #****************** generate the ground-truth sequences and groud-truth data (i.e. subjects' biomarker measures)
     dataset_name            = 'sim'
@@ -167,6 +170,78 @@ def main():
         labels[index_control]   = 1
 
         sustain                 = ZscoreSustain(data, Z_vals, Z_max, SuStaInLabels, N_startpoints, N_S_max, N_iterations_MCMC, output_folder, dataset_name, use_parallel_startpoints)
+
+    elif    sustainType == 'mixed':
+
+        data                    = simfuncs_mixed.generate_mixed_data(seed=42)
+
+        zscore_data             = data["zscore_data"]
+        z_vals                  = data["z_vals"]
+        z_max                   = data["z_max"]
+        score_vals              = data["score_vals"]
+
+        n_biomarkers_ordinal    = data["n_biomarkers_ordinal"]
+        n_biomarkers_event      = data["n_biomarkers_event"]
+
+        ordinal_prob_nl         = data["ordinal_prob_nl"]
+        ordinal_prob_score      = data["ordinal_prob_score"]
+        event_prob_yes          = data["event_prob_yes"]
+        event_prob_no           = data["event_prob_no"]
+
+        if zscore_data is not None and zscore_data.shape[1] > 0:
+            zscore_labels       = [f"zscore_{i+1}" for i in range(zscore_data.shape[1])]
+        else:
+            zscore_labels       = []
+
+        ordinal_labels          = [f"ordinal_{i+1}" for i in range(n_biomarkers_ordinal)]
+        event_labels            = [f"event_{i+1}" for i in range(n_biomarkers_event)]
+
+        if n_biomarkers_ordinal > 0:
+            ordinal_score_vals = score_vals[:n_biomarkers_ordinal, :]
+        else:
+            ordinal_prob_nl = None
+            ordinal_prob_score = None
+            ordinal_score_vals = np.zeros((0, 0), dtype=int)
+
+        if n_biomarkers_event == 0:
+            event_prob_no = None
+            event_prob_yes = None
+
+        if zscore_data is not None:
+            num_subjects        = zscore_data.shape[0]
+        elif ordinal_prob_nl is not None:
+            num_subjects        = ordinal_prob_nl.shape[0]
+        elif event_prob_no is not None:
+            num_subjects        = event_prob_no.shape[0]
+        else:
+            raise ValueError("Mixed simulation returned no modality data.")
+
+        ground_truth_subj_ids   = list(np.arange(1, num_subjects + 1).astype('str'))
+        ground_truth_sequences  = data["gt_sequence"]
+        ground_truth_subtypes   = data["gt_subtypes"]
+        ground_truth_stages     = data["gt_stages"]
+        N_S_ground_truth        = ground_truth_sequences.shape[0]
+
+        sustain                 = MixedTypeSustain(
+            zscore_data=zscore_data,
+            z_vals=z_vals,
+            z_max=z_max,
+            zscore_biomarker_labels=zscore_labels,
+            ordinal_prob_nl=ordinal_prob_nl,
+            ordinal_prob_score=ordinal_prob_score,
+            ordinal_score_vals=ordinal_score_vals,
+            ordinal_biomarker_labels=ordinal_labels,
+            event_prob_yes=event_prob_yes,
+            event_prob_no=event_prob_no,
+            event_biomarker_labels=event_labels,
+            N_startpoints=N_startpoints,
+            N_S_max=N_S_max,
+            N_iterations_MCMC=N_iterations_MCMC,
+            output_folder=output_folder,
+            dataset_name=dataset_name,
+            use_parallel_startpoints=use_parallel_startpoints
+        )
+        validate                = False
 
     #****** plot the ground truth sequences
     ground_truth_sequences              = np.expand_dims(ground_truth_sequences, axis=2)

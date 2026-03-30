@@ -122,6 +122,9 @@ pythonenv*
 .spyderproject
 .spyproject
 
+# Pycharm project settings
+.idea
+
 # Rope project settings
 .ropeproject
 
@@ -143,6 +146,11 @@ dmypy.json
 .prof
 *.lprof
 
+# results folder
+/results
+/output
+
 # End of https://www.toptal.com/developers/gitignore/api/python
 
 .DS_Store
+

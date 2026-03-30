@@ -1,9 +1,9 @@
 #you should have python 3.7 or higher to use numpy 1.18
-numpy>=1.18
+numpy>=1.18,<2.4.0
 scipy
 matplotlib>=3.0.0
 pathos
-dill==0.3.5.1
+dill>=0.3.8
 scikit-learn
 pandas
 pybind11
